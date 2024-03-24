@@ -1,0 +1,73 @@
+Arguments: 
+  /root/.nvm/versions/node/v18.9.1/bin/node /root/.nvm/versions/node/v18.9.1/bin/yarn add contractoor
+
+PATH: 
+  /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/.pyenv/shims:/root/.pyenv/bin:/root/.cursor-server/bin/2e7179e3e051701daa9a88391f21ae69d01be4e0/bin/remote-cli:/root/.local/share/pnpm:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/root/miniconda3/bin:/root/miniconda3/condabin:/root/.sdkman/candidates/kotlin/current/bin:/root/.sdkman/candidates/gradle/current/bin:/root/.nvm/versions/node/v18.9.1/bin:/root/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/Program Files (x86)/Common Files/Oracle/Java/javapath:/mnt/c/Program Files/Amazon Corretto/jdk11.0.15_9/bin:/mnt/c/Python310/Scripts:/mnt/c/Python310:/mnt/c/Program Files (x86)/Common Files/Intel/Shared Libraries/redist/intel64/compiler:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0:/mnt/c/Windows/System32/OpenSSH:/mnt/c/Program Files (x86)/NVIDIA Corporation/PhysX/Common:/mnt/c/Program Files/nodejs:/mnt/c/ProgramData/chocolatey/bin:/mnt/c/Program Files/dotnet:/mnt/c/Program Files (x86)/Common Files/Acronis/SnapAPI:/mnt/c/Program Files (x86)/Common Files/Acronis/VirtualFile:/mnt/c/Program Files (x86)/Common Files/Acronis/VirtualFile64:/mnt/c/Program Files (x86)/Common Files/Acronis/FileProtector:/mnt/c/Program Files (x86)/Common Files/Acronis/FileProtector64:/mnt/c/Program Files/Microsoft SQL Server/150/Tools/Binn:/mnt/c/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn:/mnt/c/Program Files/Microsoft SQL Server/130/Tools/Binn:/mnt/c/Program Files/Git/cmd:/mnt/c/Program Files/Docker/Docker/resources/bin:/mnt/c/Users/Roy/AppData/Local/Programs/cursor/resources/app/bin:/mnt/c/Users/Roy/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/Roy/AppData/Roaming/npm:/mnt/c/Users/Roy/AppData/Local/Programs/Microsoft VS Code/bin:/mnt/d/ipfsDesktop/resources/app.asar.unpacked/src/ipfs-on-path/scripts/bin-win:/mnt/d/Program Files (x86)/BrowserStackLocal:/mnt/c/Users/Roy/.dotnet/tools:/mnt/c/Users/Roy/AppData/Local/JetBrains/Toolbox/scripts:/mnt/c/Users/Roy/AppData/Local/gitkraken/bin:/mnt/d/vscodeinsiders/bin:/root/.foundry/bin:/root/.antigen/bundles/robbyrussell/oh-my-zsh/plugins/git:/root/.antigen/bundles/robbyrussell/oh-my-zsh/plugins/pip:/root/.antigen/bundles/lukechilds/zsh-nvm:/root/.antigen/bundles/zsh-users/zsh-syntax-highlighting
+
+Yarn version: 
+  1.22.19
+
+Node version: 
+  18.9.1
+
+Platform: 
+  linux x64
+
+Trace: 
+  Error: https://registry.yarnpkg.com/contractoor: Not found
+      at params.callback [as _callback] (/root/.nvm/versions/node/v18.9.1/lib/node_modules/yarn/lib/cli.js:66145:18)
+      at self.callback (/root/.nvm/versions/node/v18.9.1/lib/node_modules/yarn/lib/cli.js:140890:22)
+      at Request.emit (node:events:513:28)
+      at Request.<anonymous> (/root/.nvm/versions/node/v18.9.1/lib/node_modules/yarn/lib/cli.js:141862:10)
+      at Request.emit (node:events:513:28)
+      at IncomingMessage.<anonymous> (/root/.nvm/versions/node/v18.9.1/lib/node_modules/yarn/lib/cli.js:141784:12)
+      at Object.onceWrapper (node:events:627:28)
+      at IncomingMessage.emit (node:events:525:35)
+      at endReadableNT (node:internal/streams/readable:1359:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+
+npm manifest: 
+  {
+    "name": "contractoor",
+    "version": "1.0.0",
+    "description": "A Smart Smart Contract Deployer",
+    "main": "dist/index.js",
+    "bin": "dist/bin/contractoor",
+    "scripts": {
+      "init": "contractoor init",
+      "test": "npx hardhat deploy",
+      "build": "tsc",
+      "prepublish": "npm run build"
+    },
+    "keywords": [],
+    "author": "Roy Osherove",
+    "license": "MIT",
+    "devDependencies": {
+      "@nomicfoundation/hardhat-ignition": "^0.15.0",
+      "@nomicfoundation/hardhat-ignition-viem": "^0.15.0",
+      "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+      "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
+      "@nomicfoundation/hardhat-verify": "^2.0.0",
+      "@nomicfoundation/hardhat-viem": "^2.0.0",
+      "@types/chai": "^4.2.0",
+      "@types/chai-as-promised": "^7.1.6",
+      "@types/mocha": ">=9.1.0",
+      "@types/node": ">=18.0.0",
+      "chai": "^4.2.0",
+      "hardhat": "^2.22.2",
+      "hardhat-gas-reporter": "^1.0.8",
+      "solidity-coverage": "^0.8.0",
+      "ts-node": ">=8.0.0",
+      "typescript": "~5.0.4",
+      "viem": "^2.7.6"
+    },
+    "dependencies": {
+      "commander": "^12.0.0"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile

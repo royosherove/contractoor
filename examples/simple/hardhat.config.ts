@@ -1,7 +1,7 @@
 import { HardhatUserConfig, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox-viem";
 // import { task } from "hardhat/config";
-import { start } from "./src/engine"; // Adjust the path as necessary
+import { start } from "../../src/engine"; // Adjust the path as necessary
 
 const config: HardhatUserConfig = {
   solidity: "0.8.24",

@@ -6,7 +6,7 @@ Contractoor is a Smart Smart Contract Deployer designed to streamline the deploy
 ### Example Configuration
 
 Below is an example of how to configure Contractoor for deploying smart contracts:
-```
+```typescript
 import { ConfigParams } from "./src/engine";
 
 
@@ -22,8 +22,6 @@ const config: ConfigParams = {
     ]
 };
 export default config;
-
-```
 
 
 ## Features

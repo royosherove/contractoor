@@ -22,6 +22,7 @@ const config: ConfigParams = {
     ]
 };
 export default config;
+```
 
 
 ## Features

@@ -91,7 +91,9 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     }
     try {
         const deployWithParams = ctorParams && ctorParams.length > 0
+            // @ts-ignore
             ? await hre.viem.deployContract(deployItem.contract, ctorParams)
+            // @ts-ignore
             : await hre.viem.deployContract(deployItem.contract);
 
         logSuccess(`>>>> Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
@@ -119,7 +121,7 @@ function removeFromCurrentlyDeploying(deployItem: DeployItem) {
 
 function checkForCyclicDependencyProblem(deployItem: DeployItem) {
     if (_DEPLOYING.includes(deployItem.contract)) {
-        throw new Error(`Cyclic dependency detected while deploying ${deployItem.contract}. Deployment path: ${deployingContracts.join(' -> ')} -> ${deployItem.contract}`);
+        throw new Error(`Cyclic dependency detected while deploying ${deployItem.contract}. Deployment path: ${_DEPLOYING.join(' -> ')} -> ${deployItem.contract}`);
     }
 }
 

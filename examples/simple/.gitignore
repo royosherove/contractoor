@@ -30,3 +30,4 @@ node_modules
 /coverage.json
 node_modules
 .vscode
+yarn-error.log

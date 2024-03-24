@@ -1,9 +1,13 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { logInfo, logSuccess } from '../loggingUtil';
-const fs = require('fs');
-const path = require('path');
+import path from 'path';
+import fs from 'fs';
+import { deplooy } from '../engine';
+import hre from 'hardhat';
 
 const program = new Command();
+
 
 program
     .command('init')
@@ -11,6 +15,20 @@ program
     .action(() => {
         generateFileFromConfig();
     });
+
+// program
+//     .command('deploy')
+//     .description('Deploy contracts based on the configuration')
+//     .action(() => {
+//         logInfo('Deploying contracts...');
+//         start({
+//             configFilePath: './contractoor.config.ts',
+//             rootDir: './contracts',
+//             hre
+//         });
+//         // Implement the deployment logic here
+//         logSuccess('Deployment completed successfully');
+//     }); 
 
 
 const generateFileFromConfig = () => {

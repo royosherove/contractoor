@@ -1,5 +1,5 @@
+import pkg from '../package.json';
 import chalk from 'chalk';
-const pkg = require('../package.json');
 
 export function startLogo() {
 

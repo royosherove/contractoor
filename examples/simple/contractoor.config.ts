@@ -1,7 +1,5 @@
 
-import { ConfigParams } from "../../src/engine";
-
-const config: ConfigParams = {
+const config= {
     contracts: [
         {
             contract: "CounterManager"

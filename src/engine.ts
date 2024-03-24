@@ -23,7 +23,7 @@ const _DEPLOYING: string[] = [];
 
 // Helper functions for logging with color
 
-export async function start(params: EngineParams) {
+export async function deplooy(params: EngineParams) {
     startLogo();
     logInfo(`Starting deployment from root directory: ${params.rootDir}`);
     try {
@@ -39,6 +39,7 @@ async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre:
         // load from .ts file:
         // resolve the path to the configuration file
         const fullPath = path.resolve(configFilePath);
+        // const config: ConfigParams = (await import(fullPath)).default;
         const config: ConfigParams = require(fullPath).default;
         const contractItems = config.contracts;
         // log all contracts to be deployed

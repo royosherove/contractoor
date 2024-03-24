@@ -1,0 +1,12 @@
+{
+    "contracts": [
+        {
+            "contractName": "CounterManager"
+        },
+        {
+            "contractName": "Counter",
+            "ctor": [ "{{CounterManager}}" ],
+            "dependencies": ["CounterManager"]
+        }
+    ]
+}

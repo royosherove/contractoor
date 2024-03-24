@@ -28,3 +28,4 @@ node_modules
 /coverage
 /coverage.json
 node_modules
+.vscode

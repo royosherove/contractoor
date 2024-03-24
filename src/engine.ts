@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import chalk from 'chalk';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import pkg from '../package.json';
+import { startLogo, logInfo, logSuccess, logError } from './loggingUtil';
 
 export interface DeployItem {
     contract: string;
@@ -19,33 +18,10 @@ export interface EngineParams {
 }
 
 // Hashtable to keep track of deployed contracts' addresses
-const deployedContracts: Record<string, string> = {};
+const _DEPLOYED: Record<string, string> = {};
+const _DEPLOYING: string[] = [];
 
 // Helper functions for logging with color
-function startLogo() {
-
-    const version = pkg.version.trim();
-    console.log(chalk.magentaBright(`
- **************************************************
- ____ ____ __ _ ___ ____ ____ ____ ___ ____ ____
- |___ [__] | \|  |  |--< |--| |___  |  [__] |--<
-
- v${version}
- **************************************************
-`));
-}
-
-function logInfo(message: string) {
-    console.log(chalk.blue(message));
-}
-
-function logSuccess(message: string) {
-    console.log(chalk.green(message));
-}
-
-function logError(message: string) {
-    console.error(chalk.red(message));
-}
 
 export async function start(params: EngineParams) {
     startLogo();
@@ -100,10 +76,14 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
 
 async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
     // Skip deployment if contract already deployed
-    if (deployedContracts[deployItem.contract]) {
+    if (_DEPLOYED[deployItem.contract]) {
         logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
         return;
     }
+
+    // Check for cyclic dependencies
+    checkForCyclicDependencyProblem(deployItem);
+    addToCurrentlyDeploying(deployItem);
 
     let ctorParams = deployItem.args;
     if (ctorParams) {
@@ -116,31 +96,55 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
 
         logSuccess(`>>>> Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
         // Store the deployed contract address using contractName as the key
-        deployedContracts[deployItem.contract] = deployWithParams.address;
+        _DEPLOYED[deployItem.contract] = deployWithParams.address;
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
         throw error;
+    } finally {
+        // Remove the contract from the deploying stack to allow further deployments
+        removeFromCurrentlyDeploying(deployItem);
+    }
+}
+
+function addToCurrentlyDeploying(deployItem: DeployItem) {
+    _DEPLOYING.push(deployItem.contract);
+}
+
+function removeFromCurrentlyDeploying(deployItem: DeployItem) {
+    const index = _DEPLOYING.indexOf(deployItem.contract);
+    if (index > -1) {
+        _DEPLOYING.splice(index, 1);
+    }
+}
+
+function checkForCyclicDependencyProblem(deployItem: DeployItem) {
+    if (_DEPLOYING.includes(deployItem.contract)) {
+        throw new Error(`Cyclic dependency detected while deploying ${deployItem.contract}. Deployment path: ${deployingContracts.join(' -> ')} -> ${deployItem.contract}`);
     }
 }
 
 async function resolveParams(ctorParams: any[] | undefined, hre: HardhatRuntimeEnvironment) {
     ctorParams = await Promise.all(ctorParams!.map(async (param) => {
         if (param.startsWith('@')) {
-            const contractName = param.slice(1); // Remove '@' from the start
-            let deployedAddress = deployedContracts[contractName];
-            if (!deployedAddress) {
-                logInfo(`Deploying missing dependency: ${contractName}`);
-                await deployContract({contract: contractName}, hre);
-                deployedAddress = deployedContracts[contractName];
-                if (!deployedAddress) {
-                    throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
-                }
-            }
-            logInfo(`Resolved dependency: ${param} => ${deployedAddress}`);
-            return deployedAddress;
+            return await resolveAddressParam(param, hre);
         }
         return param;
     }));
     return ctorParams;
+}
+
+async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
+    const contractName = param.slice(1); // Remove '@' from the start
+    let deployedAddress = _DEPLOYED[contractName];
+    if (!deployedAddress) {
+        logInfo(`Deploying missing dependency: ${contractName}`);
+        await deployContract({ contract: contractName }, hre);
+        deployedAddress = _DEPLOYED[contractName];
+        if (!deployedAddress) {
+            throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
+        }
+    }
+    logInfo(`Resolved dependency: ${param} => ${deployedAddress}`);
+    return deployedAddress;
 }
 

@@ -1,5 +1,7 @@
 # Contractoor
 
+This is still a work in progress and not recommended for production use. very early alpha.
+
 ## Description
 Contractoor is a Smart Smart Contract Deployer designed to streamline the deployment of smart contracts. It simplifies the process of deploying contracts to the blockchain, managing dependencies, and ensuring that contracts are deployed efficiently and correctly.
 

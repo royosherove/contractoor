@@ -17,7 +17,8 @@ const config: ConfigParams = {
         },
         {
             contract: "ChildContract",
-            args: ["@ParentContract"], //<-- This uses the address of the deployed ParentContract
+            args: ["@MyParentContract"], //<--replaced with deployed MyParentContract address
+            dependencies:["MyParentContract"]  
         }
     ]
 };

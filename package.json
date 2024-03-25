@@ -1,15 +1,26 @@
 {
   "name": "contractoor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A Smart Smart Contract Deployer",
   "main": "dist/index.js",
+  "repository": "github:royosherove/contractoor",
   "bin": "src/bin/contractoor.js",
   "scripts": {
     "test": "npx hardhat deploy",
     "build": "tsc --build --force",
     "prepublish": "npm run build"
   },
-  "keywords": [],
+  "keywords": [
+    "ethereum",
+    "smart-contracts",
+    "hardhat",
+    "blockchain",
+    "dapps",
+    "javascript",
+    "tooling",
+    "task-runner",
+    "solidity"
+  ],
   "author": "Roy Osherove",
   "license": "MIT",
   "devDependencies": {

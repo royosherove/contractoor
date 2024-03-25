@@ -1,7 +1,8 @@
 # Contractoor
 
 This is still a work in progress and not recommended for production use. very early alpha.
-![image](https://github.com/royosherove/contractoor/assets/575051/aa620855-042d-4a30-8bc5-a5ad9e67f504)
+![image](https://github.com/royosherove/contractoor/assets/575051/09f1bb0c-7b95-4499-8b15-31c7a24cb83a)
+
 
 
 ## Description

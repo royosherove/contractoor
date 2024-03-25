@@ -139,7 +139,7 @@ async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
             throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
         }
     }
-    logSuccess(`Arg: ${param} => ${deployedAddress}`);
+    logInfo(`Arg: ${param} => ${deployedAddress}`);
     return deployedAddress;
 }
 

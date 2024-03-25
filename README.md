@@ -69,6 +69,9 @@ const config: ConfigParams = {
 export default config;
 ```
 
+# Examples
+See [Examples Folder](https://github.com/royosherove/contractoor/tree/main/Examples)
+
 
 # Features
 - **Dependency Based Smart Contract Deployment**: Easily deploy your smart contracts in the correct order

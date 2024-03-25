@@ -1,8 +1,16 @@
 
-const config= {
+import { ConfigParams } from "contractoor";
+import dotenv from 'dotenv';
+
+dotenv.config();
+const env = process.env;
+
+
+const config: ConfigParams = {
     contracts: [
         {
-            contract: "CounterManager"
+            contract: "CounterManager",
+            args: [env.OWNER_ADDRESS],
         },
         {
             contract: "Counter",

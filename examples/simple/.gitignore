@@ -11,11 +11,9 @@ dist
 # Docs
 docs/
 
-# Dotenv file
 .env
 
 node_modules
-.env
 dist
 
 # Hardhat files

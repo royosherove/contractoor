@@ -8,6 +8,7 @@ import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
 const _DEPLOYING: string[] = [];
+let _DEPLOY_CONFIG: ConfigParams ;
 
 // Helper functions for logging with color
 
@@ -29,6 +30,7 @@ async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre:
         const fullPath = path.resolve(configFilePath);
         // const config: ConfigParams = (await import(fullPath)).default;
         const config: ConfigParams = require(fullPath).default;
+        _DEPLOY_CONFIG = config;
         const contractItems = config.contracts;
         // log all contracts to be deployed
         contractItems.forEach((item) => {
@@ -78,6 +80,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
 
     let ctorParams = deployItem.args;
     if (ctorParams) {
+        logInfo(`ctor args found: (${ctorParams.length} total)`)
         ctorParams = await resolveParams(ctorParams, hre);
     }
     try {
@@ -122,6 +125,7 @@ async function resolveParams(ctorParams: any[] | undefined, hre: HardhatRuntimeE
         if (param.startsWith('@')) {
             return await resolveAddressParam(param, hre);
         }
+        logInfo(`Arg: "${param}" used as is`);
         return param;
     }));
     return ctorParams;
@@ -133,7 +137,7 @@ async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
     let deployedAddress = _DEPLOYED[contractName];
     if (!deployedAddress) {
         logInfo(`Deploying missing dependency: ${contractName}`);
-        await deployContract({ contract: contractName }, hre);
+        await deployContract(findDeployItem(contractName) , hre);
         deployedAddress = _DEPLOYED[contractName];
         if (!deployedAddress) {
             throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
@@ -141,5 +145,13 @@ async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
     }
     logInfo(`Arg: ${param} => ${deployedAddress}`);
     return deployedAddress;
+}
+
+function findDeployItem(contractName: any): DeployItem {
+    const found = _DEPLOY_CONFIG.contracts.find((item) => item.contract === contractName);
+    if (!found) {
+        throw new Error(`Contract ${contractName} not found in configuration. (arg dependency not found)`);
+    }
+    return found;
 }
 

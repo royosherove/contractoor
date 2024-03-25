@@ -9,14 +9,16 @@ const config: ConfigParams = {
     contracts: [
         {
             contract: "CounterManager",
-            args: [env.OWNER_ADDRESS],
+            args: [env.OWNER_ADDRESS], //env variable using dotenv
         },
         {
             contract: "Counter",
-            args: ["@CounterManager"],
+            // will deploy CounterManager first and pass its address as an argument to Counter's constructor
+            args: ["@CounterManager"], // constructor arguments
         },
         {
             contract: "ShouldBeInitialized",
+            // after deployment, will call the initialize() function of the contract with the given arguments
             initializeWith: ["@CounterManager"],
         }
 

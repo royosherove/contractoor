@@ -52,18 +52,20 @@ import { ConfigParams } from "contractoor";
 const config: ConfigParams = {
     contracts: [
         {
-            // name of a file, and the contact inside that file should match
-            // Searches recursively under "contracts" folder
-            contract: "MyParentContract" 
+            contract: "CounterManager",
+            args: [env.OWNER_ADDRESS], //env variable using dotenv
         },
         {
-            // This contract requires the parent to be deployed first 
-            // the parent's address needs to be sent as an argument to this contract's constructor
-            contract: "ChildContract",
-            // forced a deploy of the parent contract first
-            // address is used in place of the '@[name]' string
-            args: ["@MyParentContract"], 
+            contract: "Counter",
+            // will deploy CounterManager first and pass its address as an argument to Counter's constructor
+            args: ["@CounterManager"], // constructor arguments
+        },
+        {
+            contract: "ShouldBeInitialized",
+            // after deployment, will call the initialize() function of the contract with the given arguments
+            initializeWith: ["@CounterManager"],
         }
+
     ]
 };
 export default config;

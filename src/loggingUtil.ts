@@ -5,7 +5,8 @@ import { format } from 'path';
 
 let depth=0;
 export function onStartDeploy(item:DeployItem){
-    logInfo(`${item.contract}:`);
+    // logInfo(`${item.contract}:`);
+    logSpecial(`Deploying ${item.contract}...`);
     depth++;
 }
 
@@ -39,8 +40,18 @@ export function logInfo(message: string) {
     console.log(fmt(chalk.blue(message)));
 }
 
+export function logSpecial(message: string) {
+    console.log(fmt(chalk.underline(chalk.bold(chalk.cyan(message)))));
+}
+
+
+
+export function onFunctionCallSuccess(message: string) {
+console.log(fmt(chalk.yellow(`⚡ ${message}`)));
+}
+
 export function logSuccess(message: string) {
-    console.log(fmt(chalk.green(message)));
+    console.log(fmt(chalk.green(`✅ ${message}`)));
 }
 
 export function logError(message: string) {

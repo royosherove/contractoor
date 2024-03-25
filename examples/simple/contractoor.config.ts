@@ -1,4 +1,3 @@
-
 import { ConfigParams } from "contractoor";
 import dotenv from 'dotenv';
 
@@ -15,8 +14,12 @@ const config: ConfigParams = {
         {
             contract: "Counter",
             args: ["@CounterManager"],
-            dependencies: ["CounterManager"]
+        },
+        {
+            contract: "ShouldBeInitialized",
+            initializeWith: ["@CounterManager"],
         }
+
     ]
 };
 

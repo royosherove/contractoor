@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy } from './loggingUtil';
+import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 
 
@@ -79,20 +79,28 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     addToCurrentlyDeploying(deployItem);
 
     let ctorParams = deployItem.args;
+    let initializeParams = deployItem.initializeWith;
     if (ctorParams) {
-        logInfo(`ctor args found: (${ctorParams.length} total)`)
-        ctorParams = await resolveParams(ctorParams, hre);
+        ctorParams = await resolveParams("constructor",ctorParams, hre);
     }
     try {
+        let deployedInstance
         const deployWithParams = ctorParams && ctorParams.length > 0
             // @ts-ignore
-            ? await hre.viem.deployContract(deployItem.contract, ctorParams)
+            ? deployedInstance =  await hre.viem.deployContract(deployItem.contract, ctorParams)
             // @ts-ignore
-            : await hre.viem.deployContract(deployItem.contract);
+            : deployedInstance= await hre.viem.deployContract(deployItem.contract);
 
+        // logInfo(JSON.stringify(deployedInstance));
         logSuccess(`Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
         // Store the deployed contract address using contractName as the key
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
+        if (initializeParams) {
+            initializeParams = await resolveParams("initialize",initializeParams, hre);
+            logInfo(`calling ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
+            deployedInstance.write.initialize(...initializeParams);
+            onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
+        }
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
         throw error;
@@ -120,15 +128,16 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
     }
 }
 
-async function resolveParams(ctorParams: any[] | undefined, hre: HardhatRuntimeEnvironment) {
-    ctorParams = await Promise.all(ctorParams!.map(async (param) => {
+async function resolveParams(paramType:string,args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
+    logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
+    args = await Promise.all(args!.map(async (param) => {
         if (param.startsWith('@')) {
             return await resolveAddressParam(param, hre);
         }
         logInfo(`Arg: "${param}" used as is`);
         return param;
     }));
-    return ctorParams;
+    return args;
 }
 
 async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {

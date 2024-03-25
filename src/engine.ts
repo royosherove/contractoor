@@ -1,21 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { startLogo, logInfo, logSuccess, logError } from './loggingUtil';
+import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy } from './loggingUtil';
+import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 
-export interface DeployItem {
-    contract: string;
-    args?: any[]; // Optional constructor arguments
-    dependencies?: string[]; // Optional dependencies
-}
-export interface ConfigParams {
-    contracts: DeployItem[]
-}
-export interface EngineParams {
-    hre: HardhatRuntimeEnvironment
-    rootDir: string;
-    configFilePath: string;
-}
 
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
@@ -44,7 +32,7 @@ async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre:
         const contractItems = config.contracts;
         // log all contracts to be deployed
         contractItems.forEach((item) => {
-            logInfo(`>>  Candidate contract: ${item.contract}`);
+            logInfo(`Candidate contract: ${item.contract}`);
         });
         await searchAndDeployContracts(rootDir, contractItems, hre);
     } catch (error) {
@@ -77,8 +65,10 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
 
 async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
     // Skip deployment if contract already deployed
+    onStartDeploy(deployItem);
     if (_DEPLOYED[deployItem.contract]) {
         logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
+        onEndDeploy(deployItem);
         return;
     }
 
@@ -97,7 +87,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             // @ts-ignore
             : await hre.viem.deployContract(deployItem.contract);
 
-        logSuccess(`>>>> Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
+        logSuccess(`Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
         // Store the deployed contract address using contractName as the key
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
     } catch (error) {
@@ -105,6 +95,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         throw error;
     } finally {
         // Remove the contract from the deploying stack to allow further deployments
+        onEndDeploy(deployItem); 
         removeFromCurrentlyDeploying(deployItem);
     }
 }
@@ -137,6 +128,7 @@ async function resolveParams(ctorParams: any[] | undefined, hre: HardhatRuntimeE
 }
 
 async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
+    logInfo(`Resolving arg: ${param}`); 
     const contractName = param.slice(1); // Remove '@' from the start
     let deployedAddress = _DEPLOYED[contractName];
     if (!deployedAddress) {
@@ -147,7 +139,7 @@ async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
             throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
         }
     }
-    logInfo(`Resolved dependency: ${param} => ${deployedAddress}`);
+    logSuccess(`Arg: ${param} => ${deployedAddress}`);
     return deployedAddress;
 }
 

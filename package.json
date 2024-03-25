@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A Smart Smart Contract Deployer",
   "main": "dist/index.js",
-  "bin": "dist/bin/contractoor.js",
+  "bin": "src/bin/contractoor.js",
   "scripts": {
     "test": "npx hardhat deploy",
     "build": "tsc --build --force",
@@ -24,9 +24,9 @@
     "commander": "^12.0.0"
   },
   "peerDependencies": {
-    "typescript": "*",
-    "hardhat": "*",
     "@types/mocha": "*",
-    "ts-node": "*"
+    "hardhat": "*",
+    "ts-node": "*",
+    "typescript": "*"
   }
 }

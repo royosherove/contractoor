@@ -1,1 +1,1 @@
-export { deplooy } from './src/engine';
+export { deplooy,ConfigParams } from './src/engine';

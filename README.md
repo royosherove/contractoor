@@ -7,20 +7,53 @@ Contractoor is a Smart Smart Contract Deployer designed to streamline the deploy
 
 ### Example Configuration
 
-Below is an example of how to configure Contractoor for deploying smart contracts:
+# Getting Started
+
+```bash
+npm install contractoor
+or
+yarn add contractoor
+
+npx contractoor init # generates contractoor.config.ts in root
+```
+
+## Place the following code in your hardhat.config.ts:
+
 ```typescript
-import { ConfigParams } from "./src/engine";
+import { HardhatUserConfig, task } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox-viem";
+import {deplooy} from "contractoor"
+
+const config: HardhatUserConfig = {
+  solidity: "0.8.24",
+};
+
+task("deploy", "uses contractoor: Deploys smart contracts based on contractoor.config.ts", async (_, hre) => {
+  await hre.run('compile'); // Ensure contracts are compiled before deployment
+  const rootDir = "./contracts"; // Specify the root directory for your contracts
+  const configFilePath = "./contractoor.config.ts"; // Specify the path to your configuration file
+  await deplooy({ hre, rootDir, configFilePath });
+})
+
+export default config;
+
+```
+
+## Example contractoor.config.ts file
+
+```typescript
+
+import { ConfigParams } from "contractoor";
 
 
 const config: ConfigParams = {
     contracts: [
         {
-            contract: "MyParentContract"
+            contract: "MyParentContract" // <--matches contracts/**/MyParentContract.sol
         },
         {
             contract: "ChildContract",
-            args: ["@MyParentContract"], //<--replaced with MyParentContract address
-            dependencies:["MyParentContract"]  
+            args: ["@MyParentContract"], //<- deployed first and replaced with address
         }
     ]
 };
@@ -28,9 +61,11 @@ export default config;
 ```
 
 
-## Features
-- **Smart Contract Deployment**: Easily deploy your smart contracts to the blockchain.
+# Features
+- **Dependency Based Smart Contract Deployment**: Easily deploy your smart contracts in the correct order
 - **Dependency Management**: Automatically handles the deployment of dependent contracts.
-- **Configuration Based Deployment**: Deploy contracts based on a predefined configuration file.
-- **Logging and Error Handling**: Provides detailed logs for deployments and gracefully handles errors.
+- **Address Resolution** : Use deployed addresses as args for dependent contracts : 
+- **.ENV support**: TBD
+- **.initialize() support**: TBD
+- **function calling support**  : TBD
 

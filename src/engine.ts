@@ -98,7 +98,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         if (initializeParams) {
             initializeParams = await resolveParams("initialize",initializeParams, hre);
             logInfo(`calling ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
-            deployedInstance.write.initialize(...initializeParams);
+            await deployedInstance.write.initialize(initializeParams);
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
         }
     } catch (error) {

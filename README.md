@@ -1,7 +1,9 @@
 # Contractoor
 
 This is still a work in progress and not recommended for production use. very early alpha.
-![image](https://github.com/royosherove/contractoor/assets/575051/8f2dc430-960d-45c0-a016-f80d9e644136)
+![image](https://github.com/royosherove/contractoor/assets/575051/09f1bb0c-7b95-4499-8b15-31c7a24cb83a)
+
+
 
 ## Description
 Contractoor is a Smart Smart Contract Deployer designed to streamline the deployment of smart contracts using hardhat.

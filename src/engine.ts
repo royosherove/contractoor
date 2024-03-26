@@ -97,9 +97,9 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
         if (initializeParams) {
             initializeParams = await resolveParams("initialize",initializeParams, hre);
-            logInfo(`calling ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
+            logInfo(`calling ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
             await deployedInstance.write.initialize(initializeParams);
-            onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams.join(',')})`);
+            onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
         }
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
@@ -130,13 +130,13 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
 
 async function resolveParams(paramType:string,args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
     logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
-    args = await Promise.all(args!.map(async (param) => {
-        if (param.startsWith('@')) {
-            return await resolveAddressParam(param, hre);
+    for (let i = 0; i < args!.length; i++) {
+        if (args![i].startsWith('@')) {
+            args![i] = await resolveAddressParam(args![i], hre);
+        } else {
+            logInfo(`Arg: "${args![i]}" used as is`);
         }
-        logInfo(`Arg: "${param}" used as is`);
-        return param;
-    }));
+    }
     return args;
 }
 

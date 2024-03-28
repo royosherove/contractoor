@@ -78,6 +78,20 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     // Check for cyclic dependencies
     checkForCyclicDependencyProblem(deployItem);
     addToCurrentlyDeploying(deployItem);
+    if(deployItem.dependencies && deployItem.dependencies.length > 0) {
+        logInfo(`Checking dependencies for ${deployItem.contract} (${deployItem.dependencies.length} total)`);
+        for (let i = 0; i < deployItem.dependencies.length; i++) {
+            const dep = deployItem.dependencies[i] as string;
+            if(!dep.startsWith('@')) {
+                throw new Error(`Invalid dependency format: ${dep} (must start with '@' symbol) under ${deployItem.contract} ->dependencies`);
+            }
+            const resolvedName = dep.slice(1); // Remove '@' from the start
+            if (!_DEPLOYED[resolvedName]) {
+                logInfo(`Deploying dependency: ${resolvedName}`);
+                await deployContract(findDeployItem(resolvedName), hre);
+            }
+        }
+    }
 
     let ctorParams = deployItem.args;
     let initializeParams = deployItem.initializeWith;

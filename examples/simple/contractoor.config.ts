@@ -15,6 +15,7 @@ const config: ConfigParams = {
             contract: "Counter",
             // will deploy CounterManager first and pass its address as an argument to Counter's constructor
             args: ["@CounterManager"], // constructor arguments
+            dependencies: ["@VerifiedChild"], // dependencies
         },
         {
             contract: "ShouldBeInitialized",

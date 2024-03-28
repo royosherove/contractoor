@@ -163,7 +163,8 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
 async function resolveParams(paramType: string, args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
     logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
     for (let i = 0; i < args!.length; i++) {
-        if (args![i].startsWith('@')) {
+        if ( args![i].startsWith && 
+             args![i].startsWith('@')) {
             args![i] = await resolveAddressParam(args![i], hre);
         } else {
             logInfo(`Arg: "${args![i]}" used as is`);

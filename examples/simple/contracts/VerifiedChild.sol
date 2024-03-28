@@ -6,13 +6,14 @@ interface IVerifiedParent {
 }
 
 contract VerifiedChild {
+    uint _someNumber;
     address _parent;
     address _owner;
     bool public initialized;
 
-    constructor() {
-        initialized = false;
+    constructor(uint someNumber) {
         _owner = msg.sender;
+        _someNumber = someNumber;
     }
     function initialize(address parent) public {
         require(_owner == msg.sender, "Only the owner can initialize.");

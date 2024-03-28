@@ -1,14 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess } from './loggingUtil';
+import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 
 
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
+const _DEPLOYED_INSTANCE: Record<string, any> = {};
 const _DEPLOYING: string[] = [];
-let _DEPLOY_CONFIG: ConfigParams ;
+let _DEPLOY_CONFIG: ConfigParams;
 
 // Helper functions for logging with color
 
@@ -81,33 +82,64 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     let ctorParams = deployItem.args;
     let initializeParams = deployItem.initializeWith;
     if (ctorParams) {
-        ctorParams = await resolveParams("constructor",ctorParams, hre);
+        ctorParams = await resolveParams("constructor", ctorParams, hre);
     }
     try {
         let deployedInstance
         const deployWithParams = ctorParams && ctorParams.length > 0
             // @ts-ignore
-            ? deployedInstance =  await hre.viem.deployContract(deployItem.contract, ctorParams)
+            ? deployedInstance = await hre.viem.deployContract(deployItem.contract, ctorParams)
             // @ts-ignore
-            : deployedInstance= await hre.viem.deployContract(deployItem.contract);
+            : deployedInstance = await hre.viem.deployContract(deployItem.contract);
 
         // logInfo(JSON.stringify(deployedInstance));
         logSuccess(`Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
         // Store the deployed contract address using contractName as the key
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
+        _DEPLOYED_INSTANCE["@" + deployItem.contract] = deployedInstance;
+        logSpecial(`Deployed ${deployItem.contract} at ${_DEPLOYED_INSTANCE["@" + deployItem.contract].address}`);
         if (initializeParams) {
-            initializeParams = await resolveParams("initialize",initializeParams, hre);
+            initializeParams = await resolveParams("initialize", initializeParams, hre);
             logInfo(`calling ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
             await deployedInstance.write.initialize(initializeParams);
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
+        }
+        logSpecial(`Performing actions for ${deployItem.contract} `);
+        if (deployItem.actions && deployItem.actions.length > 0) {
+            await callActions(deployItem, hre);
         }
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
         throw error;
     } finally {
         // Remove the contract from the deploying stack to allow further deployments
-        onEndDeploy(deployItem); 
+        onEndDeploy(deployItem);
         removeFromCurrentlyDeploying(deployItem);
+    }
+}
+
+async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
+    if(!deployItem.actions || deployItem.actions.length === 0) {
+        logInfo(`No actions to perform for ${deployItem.contract}`);
+        return;
+    }
+    logInfo(`Performing actions for ${deployItem.contract} (${deployItem.actions.length} total)`);
+    for (let i = 0; i < deployItem.actions.length; i++) {
+        const act = deployItem.actions[i];
+        try {
+            // @ts-ignore
+            act.args = await resolveParams(act.command, act.args, hre);
+            const targetAddress = await resolveParams("target", [act.target], hre);
+            logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
+            const contractInstance = _DEPLOYED_INSTANCE[act.target];
+            if(!contractInstance) {
+                throw new Error(`Contract instance not found for ${act.target}.`);
+            }
+            await contractInstance.write[act.command](act.args);
+            onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
+        } catch (error) {
+            logError(`Action failed for ${act.target}.${act.command} with error: ${error}`);
+        }
     }
 }
 
@@ -128,7 +160,7 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
     }
 }
 
-async function resolveParams(paramType:string,args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
+async function resolveParams(paramType: string, args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
     logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
     for (let i = 0; i < args!.length; i++) {
         if (args![i].startsWith('@')) {
@@ -141,12 +173,12 @@ async function resolveParams(paramType:string,args: any[] | undefined, hre: Hard
 }
 
 async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
-    logInfo(`Resolving arg: ${param}`); 
+    logInfo(`Resolving arg: ${param}`);
     const contractName = param.slice(1); // Remove '@' from the start
     let deployedAddress = _DEPLOYED[contractName];
     if (!deployedAddress) {
         logInfo(`Deploying missing dependency: ${contractName}`);
-        await deployContract(findDeployItem(contractName) , hre);
+        await deployContract(findDeployItem(contractName), hre);
         deployedAddress = _DEPLOYED[contractName];
         if (!deployedAddress) {
             throw new Error(`Failed to deploy and resolve address for ${contractName}.`);

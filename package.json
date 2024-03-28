@@ -6,7 +6,7 @@
   "repository": "github:royosherove/contractoor",
   "bin": "src/bin/contractoor.js",
   "scripts": {
-    "test": "npx hardhat deploy",
+    "test": "yarn build --force && npm link && cd examples/simple && npm link contractoor &&  npx hardhat clean && npx hardhat compile --force && npx hardhat deploy",
     "build": "tsc --build --force",
     "prepublish": "npm run build"
   },

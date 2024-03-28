@@ -20,6 +20,17 @@ const config: ConfigParams = {
             contract: "ShouldBeInitialized",
             // after deployment, will call the initialize() function of the contract with the given arguments
             initializeWith: ["@CounterManager"],
+        },
+        {
+            contract: "VerifiedChild",
+            // initializeWith: ["@VerifiedParent"],
+            actions: [
+                { target: "@VerifiedParent", command: "allowChild", args: ["@VerifiedChild"] },
+                { target: "@VerifiedChild", command: "initialize", args: ["@VerifiedParent"] },
+            ]
+        },
+        {
+            contract: "VerifiedParent",
         }
 
     ]

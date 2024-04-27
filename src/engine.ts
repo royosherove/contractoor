@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial } from './loggingUtil';
+import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial, logInit, logSetBalance } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 
 
@@ -10,11 +10,26 @@ const _DEPLOYED: Record<string, string> = {};
 const _DEPLOYED_INSTANCE: Record<string, any> = {};
 const _DEPLOYING: string[] = [];
 let _DEPLOY_CONFIG: ConfigParams;
+let _hre: HardhatRuntimeEnvironment;
 
 // Helper functions for logging with color
 
+async function getBalance() {
+    // @ts-ignore
+    const publicClient = await _hre.viem.getPublicClient();
+    // @ts-ignore
+    const [activeWallet] = await _hre.viem.getWalletClients();
+    const balance = await publicClient.getBalance({address:activeWallet.account.address});
+    return balance;
+}
 export async function deplooy(params: EngineParams) {
+    _hre = params.hre;
+   logInit(_hre);
+   const startBalance = await getBalance();
+//    @ts-ignore
+    logSetBalance(startBalance);
     startLogo();
+    logInfo(`Starting balance: ${startBalance}`)
     logInfo(`Starting deployment from root directory: ${params.rootDir}`);
     try {
         await loadConfigAndDeploy(params.configFilePath, params.rootDir, params.hre);
@@ -58,6 +73,7 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
             try {
                 const contractName = path.basename(file, path.extname(file));
                 await deployContract(items.find((item) => item.contract === contractName)!, hre);
+                logSetBalance(await getBalance());
             } catch (error) {
                 logError(`Failed to deploy contract ${path.basename(file, path.extname(file))}: ${error}`);
                 throw error;
@@ -122,6 +138,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             // @ts-ignore
             const txR = await publicClient.waitForTransactionReceipt ({hash: txHash});
             logInfo("included in block: " + txR.blockNumber);
+            logSetBalance(await getBalance());
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
         }
         logSpecial(`Performing actions for ${deployItem.contract} `);
@@ -161,6 +178,7 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
             const publicClient = await hre.viem.getPublicClient();
             // @ts-ignore
             const txR = await publicClient.waitForTransactionReceipt ({hash});
+            logSetBalance(await getBalance());
             logInfo("included in block: " + txR.blockNumber);
             onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
         } catch (error) {

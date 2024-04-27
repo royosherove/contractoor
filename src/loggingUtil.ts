@@ -4,6 +4,19 @@ import { DeployItem } from './interfaces';
 import { format } from 'path';
 
 let depth=0;
+let _hre:any;
+let _currentBalance=0;
+
+export function logSetBalance(balance:string){
+//    format from gwei to eth // 
+    _currentBalance =  parseFloat(balance)/1e18; 
+    // round off to 4 decimal places
+    _currentBalance = Math.round(_currentBalance*10000)/10000;
+}
+export function logInit(hre:any){
+    _hre=hre;
+}
+
 export function onStartDeploy(item:DeployItem){
     // logInfo(`${item.contract}:`);
     logSpecial(`Deploying ${item.contract}...`);
@@ -33,7 +46,8 @@ export function startLogo() {
 }
 
 function fmt(message:string){
-    return `|${'_'.repeat(depth*2)}| ${message}`;
+    return `|${new Date().toLocaleTimeString()} | ${_currentBalance||''} ETH ${'-'.repeat(depth*2)}> ${message}`;
+    
 }
 
 export function logInfo(message: string) {

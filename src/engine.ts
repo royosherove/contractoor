@@ -4,13 +4,14 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial, logInit, logSetBalance } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams } from './interfaces';
 
-
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
 const _DEPLOYED_INSTANCE: Record<string, any> = {};
 const _DEPLOYING: string[] = [];
 let _DEPLOY_CONFIG: ConfigParams;
 let _hre: HardhatRuntimeEnvironment;
+const DEPLOY_STATE_FILE = '.deployState';
+let DEPLOY_STATE_OBJ: Record<string, any> = {};
 
 // Helper functions for logging with color
 
@@ -22,33 +23,44 @@ async function getBalance() {
     const balance = await publicClient.getBalance({address:activeWallet.account.address});
     return balance;
 }
+
 export async function deplooy(params: EngineParams) {
     _hre = params.hre;
-   logInit(_hre);
-   const startBalance = await getBalance();
-//    @ts-ignore
+    logInit(_hre);
+    const startBalance = await getBalance();
+    // @ts-ignore
     logSetBalance(startBalance);
     startLogo();
     logInfo(`Starting balance: ${startBalance}`)
     logInfo(`Starting deployment from root directory: ${params.rootDir}`);
     try {
+        await loadDeployState();
         await loadConfigAndDeploy(params.configFilePath, params.rootDir, params.hre);
+        saveDeployState();
         logSuccess('Deployment completed successfully.');
     } catch (error) {
         logError(`Deployment failed: ${error}`);
     }
 }
 
+async function loadDeployState() {
+    if (fs.existsSync(DEPLOY_STATE_FILE)) {
+        DEPLOY_STATE_OBJ = JSON.parse(fs.readFileSync(DEPLOY_STATE_FILE, 'utf8'));
+    } else {
+        fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify({}));
+    }
+}
+
+function saveDeployState() {
+    fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify(DEPLOY_STATE_OBJ, null, 2));
+}
+
 async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre: HardhatRuntimeEnvironment) {
     try {
-        // load from .ts file:
-        // resolve the path to the configuration file
         const fullPath = path.resolve(configFilePath);
-        // const config: ConfigParams = (await import(fullPath)).default;
         const config: ConfigParams = require(fullPath).default;
         _DEPLOY_CONFIG = config;
         const contractItems = config.contracts;
-        // log all contracts to be deployed
         contractItems.forEach((item) => {
             logInfo(`Candidate contract: ${item.contract}`);
         });
@@ -70,37 +82,31 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
         if (stat.isDirectory()) {
             await searchAndDeployContracts(filePath, items, hre);
         } else if (stat.isFile() && contractNames.includes(path.basename(file, path.extname(file)))) {
-            try {
-                const contractName = path.basename(file, path.extname(file));
-                await deployContract(items.find((item) => item.contract === contractName)!, hre);
-                logSetBalance(await getBalance());
-            } catch (error) {
-                logError(`Failed to deploy contract ${path.basename(file, path.extname(file))}: ${error}`);
-                throw error;
+            const contractName = path.basename(file, path.extname(file));
+            if (!DEPLOY_STATE_OBJ[contractName] || !DEPLOY_STATE_OBJ[contractName].deployed) {
+                try {
+                    await deployContract(items.find((item) => item.contract === contractName)!, hre);
+                    logSetBalance(await getBalance());
+                    saveDeployState(); // Save state after each deploy
+                } catch (error) {
+                    logError(`Failed to deploy contract ${contractName}: ${error}`);
+                    throw error;
+                }
+            } else {
+                logInfo(`Skipping deployment for ${contractName} as it is already deployed.`);
             }
         }
     }
 }
 
 async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
-    // Skip deployment if contract already deployed
     onStartDeploy(deployItem);
-    if (_DEPLOYED[deployItem.contract]) {
-        logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
-        onEndDeploy(deployItem);
-        return;
-    }
-
-    // Check for cyclic dependencies
     checkForCyclicDependencyProblem(deployItem);
     addToCurrentlyDeploying(deployItem);
     if(deployItem.dependencies && deployItem.dependencies.length > 0) {
         logInfo(`Checking dependencies for ${deployItem.contract} (${deployItem.dependencies.length} total)`);
         for (let i = 0; i < deployItem.dependencies.length; i++) {
             const dep = deployItem.dependencies[i] as string;
-            if(!dep.startsWith('@')) {
-                throw new Error(`Invalid dependency format: ${dep} (must start with '@' symbol) under ${deployItem.contract} ->dependencies`);
-            }
             const resolvedName = dep.slice(1); // Remove '@' from the start
             if (!_DEPLOYED[resolvedName]) {
                 logInfo(`Deploying dependency: ${resolvedName}`);
@@ -115,19 +121,20 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         ctorParams = await resolveParams("constructor", ctorParams, hre);
     }
     try {
-        let deployedInstance
+        let deployedInstance;
         const deployWithParams = ctorParams && ctorParams.length > 0
             // @ts-ignore
             ? deployedInstance = await hre.viem.deployContract(deployItem.contract, ctorParams)
             // @ts-ignore
             : deployedInstance = await hre.viem.deployContract(deployItem.contract);
 
-        // logInfo(JSON.stringify(deployedInstance));
         logSuccess(`Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
-        // Store the deployed contract address using contractName as the key
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
         _DEPLOYED_INSTANCE["@" + deployItem.contract] = deployedInstance;
         logSpecial(`Deployed ${deployItem.contract} at ${_DEPLOYED_INSTANCE["@" + deployItem.contract].address}`);
+        DEPLOY_STATE_OBJ[deployItem.contract] = { deployed: true, address: deployWithParams.address, actions: {} };
+        saveDeployState(); // Save state after each deploy
+
         if (initializeParams) {
             initializeParams = await resolveParams("initialize", initializeParams, hre);
             logInfo(`calling ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
@@ -140,6 +147,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             logInfo("included in block: " + txR.blockNumber);
             logSetBalance(await getBalance());
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
+            saveDeployState(); // Save state after initialize call
         }
         logSpecial(`Performing actions for ${deployItem.contract} `);
         if (deployItem.actions && deployItem.actions.length > 0) {
@@ -149,7 +157,6 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
         throw error;
     } finally {
-        // Remove the contract from the deploying stack to allow further deployments
         onEndDeploy(deployItem);
         removeFromCurrentlyDeploying(deployItem);
     }
@@ -163,26 +170,31 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
     logInfo(`Performing actions for ${deployItem.contract} (${deployItem.actions.length} total)`);
     for (let i = 0; i < deployItem.actions.length; i++) {
         const act = deployItem.actions[i];
-        try {
-            // @ts-ignore
-            act.args = await resolveParams(act.command, act.args, hre);
-            const targetAddress = await resolveParams("target", [act.target], hre);
-            logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
-            const contractInstance = _DEPLOYED_INSTANCE[act.target];
-            if(!contractInstance) {
-                throw new Error(`Contract instance not found for ${act.target}.`);
+        if (!DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] || !DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command].completed) {
+            try {
+                act.args = await resolveParams(act.command, act.args, hre);
+                const targetAddress = await resolveParams("target", [act.target], hre);
+                logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
+                const contractInstance = _DEPLOYED_INSTANCE[act.target];
+                if(!contractInstance) {
+                    throw new Error(`Contract instance not found for ${act.target}.`);
+                }
+                const hash = await contractInstance.write[act.command](act.args);
+                logInfo(`Waiting for transaction receipt: ${hash}`);
+                // @ts-ignore
+                const publicClient = await hre.viem.getPublicClient();
+                // @ts-ignore
+                const txR = await publicClient.waitForTransactionReceipt ({hash});
+                logSetBalance(await getBalance());
+                logInfo("included in block: " + txR.blockNumber);
+                onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
+                DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { completed: true, args: act.args };
+                saveDeployState(); // Save state after each action call
+            } catch (error) {
+                logError(`Action failed for ${act.target}.${act.command} with error: ${error}`);
             }
-            const hash = await contractInstance.write[act.command](act.args);
-            logInfo(`Waiting for transaction receipt: ${hash}`);
-            // @ts-ignore
-            const publicClient = await hre.viem.getPublicClient();
-            // @ts-ignore
-            const txR = await publicClient.waitForTransactionReceipt ({hash});
-            logSetBalance(await getBalance());
-            logInfo("included in block: " + txR.blockNumber);
-            onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
-        } catch (error) {
-            logError(`Action failed for ${act.target}.${act.command} with error: ${error}`);
+        } else {
+            logInfo(`Skipping action ${act.command} for ${deployItem.contract} as it is already completed.`);
         }
     }
 }
@@ -204,7 +216,7 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
     }
 }
 
-async function resolveParams(paramType: string, args: any[] | undefined, hre: HardhatRuntimeEnvironment) {
+async function resolveParams(paramType: string, args: any[] , hre: HardhatRuntimeEnvironment) {
     logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
     for (let i = 0; i < args!.length; i++) {
         if ( args![i].startsWith && 

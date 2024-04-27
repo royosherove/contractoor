@@ -16,6 +16,7 @@ docs/
 
 node_modules
 .env
+.deployeState
 
 # Hardhat files
 /cache

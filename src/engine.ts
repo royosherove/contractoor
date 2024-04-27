@@ -176,6 +176,8 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
     for (let i = 0; i < deployItem.actions.length; i++) {
         const act = deployItem.actions[i];
         if (!DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] || !DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command].completed) {
+            DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { pending: true, args: act.args }; // Set action state to pending
+            saveDeployState(); // Save state before action call
             try {
                 act.args = await resolveParams(act.command, act.args, hre);
                 const targetAddress = await resolveParams("target", [act.target], hre);

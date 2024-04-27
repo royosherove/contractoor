@@ -115,7 +115,13 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         if (initializeParams) {
             initializeParams = await resolveParams("initialize", initializeParams, hre);
             logInfo(`calling ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
-            await deployedInstance.write.initialize(initializeParams);
+            const txHash = await deployedInstance.write.initialize(initializeParams);
+            logInfo(`Waiting for transaction receipt: ${txHash}`);
+            // @ts-ignore
+            const publicClient = await hre.viem.getPublicClient();
+            // @ts-ignore
+            const txR = await publicClient.waitForTransactionReceipt ({hash: txHash});
+            logInfo("included in block: " + txR.blockNumber);
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
         }
         logSpecial(`Performing actions for ${deployItem.contract} `);
@@ -149,7 +155,13 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
             if(!contractInstance) {
                 throw new Error(`Contract instance not found for ${act.target}.`);
             }
-            await contractInstance.write[act.command](act.args);
+            const hash = await contractInstance.write[act.command](act.args);
+            logInfo(`Waiting for transaction receipt: ${hash}`);
+            // @ts-ignore
+            const publicClient = await hre.viem.getPublicClient();
+            // @ts-ignore
+            const txR = await publicClient.waitForTransactionReceipt ({hash});
+            logInfo("included in block: " + txR.blockNumber);
             onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
         } catch (error) {
             logError(`Action failed for ${act.target}.${act.command} with error: ${error}`);

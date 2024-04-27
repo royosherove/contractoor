@@ -94,6 +94,11 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
                 }
             } else {
                 logInfo(`Skipping deployment for ${contractName} as it is already deployed.`);
+                // Check if there are any pending actions for the already deployed contract
+                const deployItem = items.find((item) => item.contract === contractName);
+                if (deployItem && deployItem.actions && deployItem.actions.length > 0) {
+                    await callActions(deployItem, hre);
+                }
             }
         }
     }

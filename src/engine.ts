@@ -24,6 +24,10 @@ async function getBalance() {
     return balance;
 }
 
+async function saveDeployState() {
+    await fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify(DEPLOY_STATE_OBJ, null, 2));
+}
+
 export async function deplooy(params: EngineParams) {
     _hre = params.hre;
     DEPLOY_STATE_FILE = `.deployState.${_hre.network.name}`;
@@ -37,7 +41,7 @@ export async function deplooy(params: EngineParams) {
     try {
         await loadDeployState();
         await loadConfigAndDeploy(params.configFilePath, params.rootDir, params.hre);
-        saveDeployState();
+        await saveDeployState();
         logSuccess('Deployment completed successfully.');
     } catch (error) {
         logError(`Deployment failed: ${error}`);
@@ -50,10 +54,6 @@ async function loadDeployState() {
     } else {
         fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify({}));
     }
-}
-
-function saveDeployState() {
-    fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify(DEPLOY_STATE_OBJ, null, 2));
 }
 
 async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre: HardhatRuntimeEnvironment) {
@@ -84,7 +84,10 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
             await searchAndDeployContracts(filePath, items, hre);
         } else if (stat.isFile() && contractNames.includes(path.basename(file, path.extname(file)))) {
             const contractName = path.basename(file, path.extname(file));
-            if (!DEPLOY_STATE_OBJ[contractName] || DEPLOY_STATE_OBJ[contractName].verification !== "completed") {
+            if (_DEPLOYED[contractName] || (DEPLOY_STATE_OBJ[contractName] && DEPLOY_STATE_OBJ[contractName].deployed == true)) {
+                logInfo(`Skipping deployment for ${contractName} as it is already deployed.`);
+                continue;
+            }
                 try {
                     const item = items.find((item) => item.contract === contractName);
                     if (!item) {
@@ -93,30 +96,28 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
                     }
                     await deployContract(item!, hre);
                     logSetBalance(await getBalance());
+                    
+                    await callActions(item, hre);
+                    logSetBalance(await getBalance());
+
                     await verifyContract(item!, hre);
-                    saveDeployState(); // Save state after each deploy
+                    await saveDeployState(); // Save state after each deploy
                 } catch (error) {
                     logError(`Failed to deploy contract ${contractName}: ${error}`);
                     throw error;
                 }
-            } else {
-                logInfo(`Skipping deployment for ${contractName} as it is already deployed.`);
-                // Check if there are any pending actions for the already deployed contract
-                const deployItem = items.find((item) => item.contract === contractName);
-                if (deployItem && deployItem.actions && deployItem.actions.length > 0) {
-                    await callActions(deployItem, hre);
-                }
-                // Check if verification is needed
-                if (deployItem && deployItem.verify && DEPLOY_STATE_OBJ[contractName].verification !== "completed") {
-                    logSpecial(`Verifying needed for ${contractName}`);
-                    await verifyContract(deployItem, hre);
-                }
             }
         }
     }
-}
+     
+
 
 async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
+    const needsDeployment = (!DEPLOY_STATE_OBJ[deployItem.contract] || DEPLOY_STATE_OBJ[deployItem.contract].deployed !== true);
+    if(!needsDeployment) {
+        logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
+        return;
+    }
     onStartDeploy(deployItem);
     checkForCyclicDependencyProblem(deployItem);
     addToCurrentlyDeploying(deployItem);
@@ -150,7 +151,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         _DEPLOYED_INSTANCE["@" + deployItem.contract] = deployedInstance;
         logSpecial(`Deployed ${deployItem.contract} at ${_DEPLOYED_INSTANCE["@" + deployItem.contract].address}`);
         DEPLOY_STATE_OBJ[deployItem.contract] = { deployed: true, address: deployWithParams.address, actions: {}, verification: deployItem.verify ? "pending" : "avoid" };
-        saveDeployState(); // Save state after each deploy
+        await saveDeployState(); // Save state after each deploy
 
         if (initializeParams) {
             initializeParams = await resolveParams("initialize", initializeParams, hre);
@@ -164,7 +165,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             logInfo("included in block: " + txR.blockNumber);
             logSetBalance(await getBalance());
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
-            saveDeployState(); // Save state after initialize call
+            await saveDeployState(); // Save state after initialize call
         }
         logSpecial(`Performing actions for ${deployItem.contract} `);
         if (deployItem.actions && deployItem.actions.length > 0) {
@@ -201,7 +202,7 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
 
 async function callSingleAction(act: ItemAction, hre: HardhatRuntimeEnvironment, deployItem: DeployItem) {
     DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { pending: true, args: act.args }; // Set action state to pending
-    saveDeployState(); // Save state before action call
+    await saveDeployState(); // Save state before action call
     act.args = await resolveParams(act.command, act.args, hre);
     const targetAddress = await resolveParams("target", [act.target], hre);
     logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
@@ -219,7 +220,7 @@ async function callSingleAction(act: ItemAction, hre: HardhatRuntimeEnvironment,
     logInfo("included in block: " + txR.blockNumber);
     onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
     DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { completed: true, args: act.args };
-    saveDeployState();
+    await saveDeployState();
 }
 
 function addToCurrentlyDeploying(deployItem: DeployItem) {
@@ -277,27 +278,41 @@ function findDeployItem(contractName: any): DeployItem {
 }
 
 async function verifyContract(item: DeployItem, hre: HardhatRuntimeEnvironment) {
-    try {
-        if (DEPLOY_STATE_OBJ[item.contract].verification === "avoid") {
-            logInfo(`Skipping (avoid) verification for ${item.contract}`);
-            return;
+    const needsVerification = (
+        item.verify && 
+        !DEPLOY_STATE_OBJ[item.contract] ||
+        (DEPLOY_STATE_OBJ[item.contract].verification !== "completed" && 
+        DEPLOY_STATE_OBJ[item.contract].deployed === true && 
+        DEPLOY_STATE_OBJ[item.contract].verification !== "avoid")
+        );
+        // skip is network name is hardhat
+    if (hre.network.name === "hardhat") {
+        logSpecial(`unsupported: Verification skipped for ${item.contract} on network: ${hre.network.name}`);
+        return;
+    }
+
+    if (needsVerification) {
+        try {
+            // verify by calling hardhat plug "verify:verify"
+            logInfo(`Verifying ${item.contract}`);
+            // @ts-ignore
+            const result = await hre.run("verify:verify", {
+                address: _DEPLOYED[item.contract],
+                constructorArguments: item.args,
+            });
+            logInfo(`Verification result: ${result}`);
+            logSuccess(`Verified ${item.contract}`);
+            DEPLOY_STATE_OBJ[item.contract].verification = "completed";
+            await saveDeployState();
+            return result;
+        } catch (err) {
+            logError(`Verification failed for ${item.contract}: ${err}`);
+            await saveDeployState();
+            return err;
         }
-        // verify by calling hardhat plug "verify:verify"
-        logInfo(`Verifying ${item.contract}`);
-        // @ts-ignore
-        const result = await hre.run("verify:verify", {
-            address: _DEPLOYED[item.contract],
-            constructorArguments: item.args,
-        });
-        logInfo(`Verification result: ${result}`);
-        logSuccess(`Verified ${item.contract}`);
-        DEPLOY_STATE_OBJ[item.contract].verification = "completed";
-        saveDeployState();
-        return result;
-    } catch (err) {
-        logError(`Verification failed for ${item.contract}: ${err}`);
-        saveDeployState();
-        return err;
+    }
+    else {
+        logSpecial(`Verification avoided for ${item.contract}`);
     }
 }
 

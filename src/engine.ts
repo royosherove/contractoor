@@ -10,7 +10,7 @@ const _DEPLOYED_INSTANCE: Record<string, any> = {};
 const _DEPLOYING: string[] = [];
 let _DEPLOY_CONFIG: ConfigParams;
 let _hre: HardhatRuntimeEnvironment;
-const DEPLOY_STATE_FILE = '.deployState';
+let DEPLOY_STATE_FILE: string;
 let DEPLOY_STATE_OBJ: Record<string, any> = {};
 
 // Helper functions for logging with color
@@ -26,6 +26,7 @@ async function getBalance() {
 
 export async function deplooy(params: EngineParams) {
     _hre = params.hre;
+    DEPLOY_STATE_FILE = `.deployState.${_hre.network.name}`;
     logInit(_hre);
     const startBalance = await getBalance();
     // @ts-ignore

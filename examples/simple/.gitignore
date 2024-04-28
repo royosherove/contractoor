@@ -12,6 +12,7 @@ dist
 docs/
 
 .env
+.deployeState*
 
 node_modules
 dist

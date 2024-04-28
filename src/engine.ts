@@ -4,6 +4,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial, logInit, logSetBalance } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams, ItemAction } from './interfaces';
 
+
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
 const _DEPLOYED_INSTANCE: Record<string, any> = {};
@@ -34,6 +35,9 @@ async function loadDeployState() {
         Object.keys(DEPLOY_STATE_OBJ).forEach((key) => {
             if (DEPLOY_STATE_OBJ[key].deployed) {
                 _DEPLOYED[key] = DEPLOY_STATE_OBJ[key].address;
+                // load contract instance from address
+                // @ts-ignore
+                // _DEPLOYED_INSTANCE["@" + key] = _hre.viem.getContract(key, DEPLOY_STATE_OBJ[key].address);
             }
         });
     } else {

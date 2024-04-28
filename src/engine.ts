@@ -20,7 +20,7 @@ async function getBalance() {
     const publicClient = await _hre.viem.getPublicClient();
     // @ts-ignore
     const [activeWallet] = await _hre.viem.getWalletClients();
-    const balance = await publicClient.getBalance({address:activeWallet.account.address});
+    const balance = await publicClient.getBalance({ address: activeWallet.account.address });
     return balance;
 }
 
@@ -84,10 +84,16 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
             await searchAndDeployContracts(filePath, items, hre);
         } else if (stat.isFile() && contractNames.includes(path.basename(file, path.extname(file)))) {
             const contractName = path.basename(file, path.extname(file));
-            if (!DEPLOY_STATE_OBJ[contractName] || !DEPLOY_STATE_OBJ[contractName].deployed) {
+            if (!DEPLOY_STATE_OBJ[contractName] || DEPLOY_STATE_OBJ[contractName].verification !== "completed") {
                 try {
-                    await deployContract(items.find((item) => item.contract === contractName)!, hre);
+                    const item = items.find((item) => item.contract === contractName);
+                    if (!item) {
+                        logError(`Contract ${contractName} not found in configuration.`);
+                        throw new Error(`Contract ${contractName} not found in configuration.`);
+                    }
+                    await deployContract(item!, hre);
                     logSetBalance(await getBalance());
+                    await verifyContract(item!, hre);
                     saveDeployState(); // Save state after each deploy
                 } catch (error) {
                     logError(`Failed to deploy contract ${contractName}: ${error}`);
@@ -100,6 +106,11 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
                 if (deployItem && deployItem.actions && deployItem.actions.length > 0) {
                     await callActions(deployItem, hre);
                 }
+                // Check if verification is needed
+                if (deployItem && deployItem.verify && DEPLOY_STATE_OBJ[contractName].verification !== "completed") {
+                    logSpecial(`Verifying needed for ${contractName}`);
+                    await verifyContract(deployItem, hre);
+                }
             }
         }
     }
@@ -109,7 +120,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     onStartDeploy(deployItem);
     checkForCyclicDependencyProblem(deployItem);
     addToCurrentlyDeploying(deployItem);
-    if(deployItem.dependencies && deployItem.dependencies.length > 0) {
+    if (deployItem.dependencies && deployItem.dependencies.length > 0) {
         logInfo(`Checking dependencies for ${deployItem.contract} (${deployItem.dependencies.length} total)`);
         for (let i = 0; i < deployItem.dependencies.length; i++) {
             const dep = deployItem.dependencies[i] as string;
@@ -138,7 +149,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         _DEPLOYED[deployItem.contract] = deployWithParams.address;
         _DEPLOYED_INSTANCE["@" + deployItem.contract] = deployedInstance;
         logSpecial(`Deployed ${deployItem.contract} at ${_DEPLOYED_INSTANCE["@" + deployItem.contract].address}`);
-        DEPLOY_STATE_OBJ[deployItem.contract] = { deployed: true, address: deployWithParams.address, actions: {} };
+        DEPLOY_STATE_OBJ[deployItem.contract] = { deployed: true, address: deployWithParams.address, actions: {}, verification: deployItem.verify ? "pending" : "avoid" };
         saveDeployState(); // Save state after each deploy
 
         if (initializeParams) {
@@ -149,7 +160,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             // @ts-ignore
             const publicClient = await hre.viem.getPublicClient();
             // @ts-ignore
-            const txR = await publicClient.waitForTransactionReceipt ({hash: txHash});
+            const txR = await publicClient.waitForTransactionReceipt({ hash: txHash });
             logInfo("included in block: " + txR.blockNumber);
             logSetBalance(await getBalance());
             onFunctionCallSuccess(`called ${deployItem.contract}.initialize(${initializeParams!.join(',')})`);
@@ -169,7 +180,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
 }
 
 async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
-    if(!deployItem.actions || deployItem.actions.length === 0) {
+    if (!deployItem.actions || deployItem.actions.length === 0) {
         logInfo(`No actions to perform for ${deployItem.contract}`);
         return;
     }
@@ -228,11 +239,11 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
     }
 }
 
-async function resolveParams(paramType: string, args: any[] , hre: HardhatRuntimeEnvironment) {
+async function resolveParams(paramType: string, args: any[], hre: HardhatRuntimeEnvironment) {
     logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
     for (let i = 0; i < args!.length; i++) {
-        if ( args![i].startsWith && 
-             args![i].startsWith('@')) {
+        if (args![i].startsWith &&
+            args![i].startsWith('@')) {
             args![i] = await resolveAddressParam(args![i], hre);
         } else {
             logInfo(`Arg: "${args![i]}" used as is`);
@@ -263,5 +274,30 @@ function findDeployItem(contractName: any): DeployItem {
         throw new Error(`Contract ${contractName} not found in configuration. (arg dependency not found)`);
     }
     return found;
+}
+
+async function verifyContract(item: DeployItem, hre: HardhatRuntimeEnvironment) {
+    try {
+        if (DEPLOY_STATE_OBJ[item.contract].verification === "avoid") {
+            logInfo(`Skipping (avoid) verification for ${item.contract}`);
+            return;
+        }
+        // verify by calling hardhat plug "verify:verify"
+        logInfo(`Verifying ${item.contract}`);
+        // @ts-ignore
+        const result = await hre.run("verify:verify", {
+            address: _DEPLOYED[item.contract],
+            constructorArguments: item.args,
+        });
+        logInfo(`Verification result: ${result}`);
+        logSuccess(`Verified ${item.contract}`);
+        DEPLOY_STATE_OBJ[item.contract].verification = "completed";
+        saveDeployState();
+        return result;
+    } catch (err) {
+        logError(`Verification failed for ${item.contract}: ${err}`);
+        saveDeployState();
+        return err;
+    }
 }
 

@@ -9,11 +9,28 @@ const config: HardhatUserConfig = {
   solidity: "0.8.24",
   networks: {
      // for testnet
-     'base-sepolia': {
+     'basesepolia': {
       url: 'https://sepolia.base.org',
       accounts: [process.env.WALLET_KEY as string],
       gasPrice: 1000000000,
     } 
+  },
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: {
+      basesepolia: process.env.BASESCAN_API_KEY||"",
+    },
+    customChains: [
+      {
+        network: "basesepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia.basescan.org/"
+        }
+      }
+    ]
   },
 };
 

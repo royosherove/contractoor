@@ -7,7 +7,7 @@
   "bin": "src/bin/contractoor.js",
   "scripts": {
     "test": "yarn build --force && npm link && cd examples/simple && npm link contractoor &&  npx hardhat clean && npx hardhat compile --force && npx hardhat deploy --network hardhat",
-    "sepolia": "yarn build --force && npm link && cd examples/simple && npm link contractoor &&  npx hardhat clean && npx hardhat compile --force && npx hardhat deploy --network base-sepolia",
+    "sepolia": "yarn build --force && npm link && cd examples/simple && npm link contractoor &&  npx hardhat clean && npx hardhat compile --force && npx hardhat deploy --network basesepolia",
     "build": "tsc --build --force",
     "prepublish": "npm run build"
   },

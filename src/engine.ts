@@ -3,6 +3,9 @@ import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial, logInit, logSetBalance } from './loggingUtil';
 import { EngineParams, DeployItem, ConfigParams, ItemAction } from './interfaces';
+// @ts-ignore
+const { getContract } = require('viem');
+// import { getContract } from 'viem'
 
 
 // Hashtable to keep track of deployed contracts' addresses
@@ -28,18 +31,39 @@ async function getBalance() {
 async function saveDeployState() {
     await fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify(DEPLOY_STATE_OBJ, null, 2));
 }
+// const contract = getContract({
+//   address: '0xFBA3912Ca04dd458c843e2EE08967fC04f3579c2',
+//   abi: wagmiAbi,
+//   // 1a. Insert a single client
+//   client: publicClient,
+//   // 1b. Or public and/or wallet clients
+//   client: { public: publicClient, wallet: walletClient }
+// })
 async function loadDeployState() {
     if (fs.existsSync(DEPLOY_STATE_FILE)) {
         DEPLOY_STATE_OBJ = JSON.parse(fs.readFileSync(DEPLOY_STATE_FILE, 'utf8'));
         // load all DEPLOYED addresses
-        Object.keys(DEPLOY_STATE_OBJ).forEach((key) => {
+        const keys = Object.keys(DEPLOY_STATE_OBJ);
+        for (let i = 0; i < keys.length; i++) {
+            logSpecial(`Loading deployed contract: ${keys[i]}`);
+            const key = keys[i];
             if (DEPLOY_STATE_OBJ[key].deployed) {
                 _DEPLOYED[key] = DEPLOY_STATE_OBJ[key].address;
-                // load contract instance from address
                 // @ts-ignore
-                // _DEPLOYED_INSTANCE["@" + key] = _hre.viem.getContract(key, DEPLOY_STATE_OBJ[key].address);
+                // const abi = (await _hre.viem.getContract(key)).abi;
+                // load contract instance from address
+                // const instance =  _hre.viem.getContract({
+                const instance =  await getContract({
+                    address: DEPLOY_STATE_OBJ[key].address,
+                    abi: [],
+                    // @ts-ignore
+                    client: _hre.viem.getPublicClient() 
+                });
+                _DEPLOYED_INSTANCE["@" + key] =  instance;
+                logSpecial(`at ${_DEPLOYED_INSTANCE["@" + key].address}`);
+                console.log(_DEPLOYED_INSTANCE["@" + key]);
             }
-        });
+        }
     } else {
         fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify({}));
     }

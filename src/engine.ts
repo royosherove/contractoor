@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { startLogo, logInfo, logSuccess, logError, onStartDeploy, onEndDeploy, onFunctionCallSuccess, logSpecial, logInit, logSetBalance } from './loggingUtil';
-import { EngineParams, DeployItem, ConfigParams } from './interfaces';
+import { EngineParams, DeployItem, ConfigParams, ItemAction } from './interfaces';
 
 // Hashtable to keep track of deployed contracts' addresses
 const _DEPLOYED: Record<string, string> = {};
@@ -176,27 +176,8 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
     for (let i = 0; i < deployItem.actions.length; i++) {
         const act = deployItem.actions[i];
         if (!DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] || !DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command].completed) {
-            DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { pending: true, args: act.args }; // Set action state to pending
-            saveDeployState(); // Save state before action call
             try {
-                act.args = await resolveParams(act.command, act.args, hre);
-                const targetAddress = await resolveParams("target", [act.target], hre);
-                logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
-                const contractInstance = _DEPLOYED_INSTANCE[act.target];
-                if(!contractInstance) {
-                    throw new Error(`Contract instance not found for ${act.target}.`);
-                }
-                const hash = await contractInstance.write[act.command](act.args);
-                logInfo(`Waiting for transaction receipt: ${hash}`);
-                // @ts-ignore
-                const publicClient = await hre.viem.getPublicClient();
-                // @ts-ignore
-                const txR = await publicClient.waitForTransactionReceipt ({hash});
-                logSetBalance(await getBalance());
-                logInfo("included in block: " + txR.blockNumber);
-                onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
-                DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { completed: true, args: act.args };
-                saveDeployState(); // Save state after each action call
+                await callSingleAction(act, hre, deployItem); // Save state after each action call
             } catch (error) {
                 logError(`Action failed for ${act.target}.${act.command} with error: ${error}`);
             }
@@ -204,6 +185,29 @@ async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironmen
             logInfo(`Skipping action ${act.command} for ${deployItem.contract} as it is already completed.`);
         }
     }
+}
+
+async function callSingleAction(act: ItemAction, hre: HardhatRuntimeEnvironment, deployItem: DeployItem) {
+    DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { pending: true, args: act.args }; // Set action state to pending
+    saveDeployState(); // Save state before action call
+    act.args = await resolveParams(act.command, act.args, hre);
+    const targetAddress = await resolveParams("target", [act.target], hre);
+    logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
+    const contractInstance = _DEPLOYED_INSTANCE[act.target];
+    if (!contractInstance) {
+        throw new Error(`Contract instance not found for ${act.target}.`);
+    }
+    const hash = await contractInstance.write[act.command](act.args);
+    logInfo(`Waiting for transaction receipt: ${hash}`);
+    // @ts-ignore
+    const publicClient = await hre.viem.getPublicClient();
+    // @ts-ignore
+    const txR = await publicClient.waitForTransactionReceipt({ hash });
+    logSetBalance(await getBalance());
+    logInfo("included in block: " + txR.blockNumber);
+    onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
+    DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { completed: true, args: act.args };
+    saveDeployState();
 }
 
 function addToCurrentlyDeploying(deployItem: DeployItem) {

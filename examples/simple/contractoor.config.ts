@@ -9,6 +9,7 @@ const config: ConfigParams = {
     contracts: [
         {
             contract: "CounterManager",
+            verify: true, 
             args: [env.OWNER_ADDRESS], //env variable using dotenv
         },
         {

@@ -11,6 +11,7 @@ export interface DeployItem {
     initializeWith?: any[]; // Optional initialization arguments
     dependencies?: string[]; // Optional dependencies
     actions?: ItemAction[]; // Optional actions to be performed after deployment
+    verify?: boolean; // Optional flag to verify the contract
 }
 export interface ConfigParams {
     contracts: DeployItem[]

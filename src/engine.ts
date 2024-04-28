@@ -27,6 +27,19 @@ async function getBalance() {
 async function saveDeployState() {
     await fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify(DEPLOY_STATE_OBJ, null, 2));
 }
+async function loadDeployState() {
+    if (fs.existsSync(DEPLOY_STATE_FILE)) {
+        DEPLOY_STATE_OBJ = JSON.parse(fs.readFileSync(DEPLOY_STATE_FILE, 'utf8'));
+        // load all DEPLOYED addresses
+        Object.keys(DEPLOY_STATE_OBJ).forEach((key) => {
+            if (DEPLOY_STATE_OBJ[key].deployed) {
+                _DEPLOYED[key] = DEPLOY_STATE_OBJ[key].address;
+            }
+        });
+    } else {
+        fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify({}));
+    }
+}
 
 export async function deplooy(params: EngineParams) {
     _hre = params.hre;
@@ -48,13 +61,6 @@ export async function deplooy(params: EngineParams) {
     }
 }
 
-async function loadDeployState() {
-    if (fs.existsSync(DEPLOY_STATE_FILE)) {
-        DEPLOY_STATE_OBJ = JSON.parse(fs.readFileSync(DEPLOY_STATE_FILE, 'utf8'));
-    } else {
-        fs.writeFileSync(DEPLOY_STATE_FILE, JSON.stringify({}));
-    }
-}
 
 async function loadConfigAndDeploy(configFilePath: string, rootDir: string, hre: HardhatRuntimeEnvironment) {
     try {
@@ -84,23 +90,19 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
             await searchAndDeployContracts(filePath, items, hre);
         } else if (stat.isFile() && contractNames.includes(path.basename(file, path.extname(file)))) {
             const contractName = path.basename(file, path.extname(file));
-            if (_DEPLOYED[contractName] || (DEPLOY_STATE_OBJ[contractName] && DEPLOY_STATE_OBJ[contractName].deployed == true)) {
-                logInfo(`Skipping deployment for ${contractName} as it is already deployed.`);
-                continue;
-            }
                 try {
                     const item = items.find((item) => item.contract === contractName);
                     if (!item) {
                         logError(`Contract ${contractName} not found in configuration.`);
                         throw new Error(`Contract ${contractName} not found in configuration.`);
                     }
-                    await deployContract(item!, hre);
+                    await deployContractIfNeeded(item!, hre);
                     logSetBalance(await getBalance());
                     
-                    await callActions(item, hre);
+                    await callActionsIfNeeded(item, hre);
                     logSetBalance(await getBalance());
 
-                    await verifyContract(item!, hre);
+                    await verifyContractIfNeeded(item!, hre);
                     await saveDeployState(); // Save state after each deploy
                 } catch (error) {
                     logError(`Failed to deploy contract ${contractName}: ${error}`);
@@ -112,7 +114,7 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
      
 
 
-async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
+async function deployContractIfNeeded(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
     const needsDeployment = (!DEPLOY_STATE_OBJ[deployItem.contract] || DEPLOY_STATE_OBJ[deployItem.contract].deployed !== true);
     if(!needsDeployment) {
         logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
@@ -128,7 +130,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
             const resolvedName = dep.slice(1); // Remove '@' from the start
             if (!_DEPLOYED[resolvedName]) {
                 logInfo(`Deploying dependency: ${resolvedName}`);
-                await deployContract(findDeployItem(resolvedName), hre);
+                await deployContractIfNeeded(findDeployItem(resolvedName), hre);
             }
         }
     }
@@ -169,7 +171,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
         }
         logSpecial(`Performing actions for ${deployItem.contract} `);
         if (deployItem.actions && deployItem.actions.length > 0) {
-            await callActions(deployItem, hre);
+            await callActionsIfNeeded(deployItem, hre);
         }
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
@@ -180,7 +182,7 @@ async function deployContract(deployItem: DeployItem, hre: HardhatRuntimeEnviron
     }
 }
 
-async function callActions(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
+async function callActionsIfNeeded(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
     if (!deployItem.actions || deployItem.actions.length === 0) {
         logInfo(`No actions to perform for ${deployItem.contract}`);
         return;
@@ -259,7 +261,7 @@ async function resolveAddressParam(param: any, hre: HardhatRuntimeEnvironment) {
     let deployedAddress = _DEPLOYED[contractName];
     if (!deployedAddress) {
         logInfo(`Deploying missing dependency: ${contractName}`);
-        await deployContract(findDeployItem(contractName), hre);
+        await deployContractIfNeeded(findDeployItem(contractName), hre);
         deployedAddress = _DEPLOYED[contractName];
         if (!deployedAddress) {
             throw new Error(`Failed to deploy and resolve address for ${contractName}.`);
@@ -277,12 +279,13 @@ function findDeployItem(contractName: any): DeployItem {
     return found;
 }
 
-async function verifyContract(item: DeployItem, hre: HardhatRuntimeEnvironment) {
+async function verifyContractIfNeeded(item: DeployItem, hre: HardhatRuntimeEnvironment) {
     const needsVerification = (
         item.verify && 
         !DEPLOY_STATE_OBJ[item.contract] ||
-        (DEPLOY_STATE_OBJ[item.contract].verification !== "completed" && 
-        DEPLOY_STATE_OBJ[item.contract].deployed === true && 
+        (
+        DEPLOY_STATE_OBJ[item.contract].deployed &&
+        DEPLOY_STATE_OBJ[item.contract].verification !== "completed" && 
         DEPLOY_STATE_OBJ[item.contract].verification !== "avoid")
         );
         // skip is network name is hardhat

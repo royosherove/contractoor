@@ -55,6 +55,11 @@ async function loadDeployState() {
     }
 }
 
+function setDeployedInstance(contractName: string, instance: any) {
+    const finalName = "@" + contractName.replace("@", "");
+    _DEPLOYED_INSTANCES[finalName] = instance;
+}
+
 async function loadExistingContractByAddress(contractName: string) {
     if (DEPLOY_STATE_OBJ[contractName].deployed) {
         _DEPLOYED_ADDRESSES[contractName] = DEPLOY_STATE_OBJ[contractName].address;
@@ -66,10 +71,13 @@ async function loadExistingContractByAddress(contractName: string) {
             // @ts-ignore
             client: _hre.viem.getPublicClient()
         });
-        _DEPLOYED_INSTANCES["@" + contractName] = instance;
-        logSpecial(`at ${_DEPLOYED_INSTANCES["@" + contractName].address}`);
-        console.log(_DEPLOYED_INSTANCES["@" + contractName]);
+        setDeployedInstance(contractName, instance); 
+        logSpecial(`at ${getInstanceOfContract(contractName).address}`);
+        console.log(getInstanceOfContract(contractName));
     }
+   else{
+         logError(`loadExistingContractByAddress: contract ${contractName} not deployed`);
+   } 
 }
 
 export async function deplooy(params: EngineParams) {
@@ -146,8 +154,6 @@ async function searchAndDeployContracts(rootDir: string, items: DeployItem[], hr
 async function deployContractIfNeeded(deployItem: DeployItem, hre: HardhatRuntimeEnvironment) {
     const needsDeployment = (!DEPLOY_STATE_OBJ[deployItem.contract] || DEPLOY_STATE_OBJ[deployItem.contract].deployed !== true);
     if (!needsDeployment) {
-       // get ABI  
-    //    get artifact from hardhat:
         logInfo(`Skipping deployment for ${deployItem.contract} as it is already deployed.`);
         return;
     }
@@ -179,10 +185,14 @@ async function deployContractIfNeeded(deployItem: DeployItem, hre: HardhatRuntim
             // @ts-ignore
             : deployedInstance = await hre.viem.deployContract(deployItem.contract);
 
+            console.log("-----------------------DEPLOYED INSTANCE contract: "+deployItem.contract+"----------------------")
+        console.log(JSON.stringify(deployedInstance.abi, null, 2)); 
+        console.log("-----------------------DEPLOYED INSTANCE----------------------")
+        
         logSuccess(`Deployed ${deployItem.contract} ==> ${deployWithParams.address}`);
         _DEPLOYED_ADDRESSES[deployItem.contract] = deployWithParams.address;
-        _DEPLOYED_INSTANCES["@" + deployItem.contract] = deployedInstance;
-        logSpecial(`Deployed ${deployItem.contract} at ${_DEPLOYED_INSTANCES["@" + deployItem.contract].address}`);
+        setDeployedInstance(deployItem.contract, deployedInstance);
+        logSpecial(`Deployed ${deployItem.contract} at ${getInstanceOfContract(deployItem.contract).address}`);
         DEPLOY_STATE_OBJ[deployItem.contract] = { deployed: true, address: deployWithParams.address, actions: {}, verification: deployItem.verify ? "pending" : "avoid" };
         await saveDeployState(); // Save state after each deploy
 
@@ -196,12 +206,14 @@ async function deployContractIfNeeded(deployItem: DeployItem, hre: HardhatRuntim
             deployItem
           );
         }
-        logSpecial(`Performing actions for ${deployItem.contract} `);
         if (deployItem.actions && deployItem.actions.length > 0) {
+            logSpecial(`Performing action(s) for ${deployItem.contract} `);
             await callActionsIfNeeded(deployItem, hre);
         }
     } catch (error) {
         logError(`Deployment of ${deployItem.contract} failed: ${error}`);
+        
+
         throw error;
     } finally {
         onEndDeploy(deployItem);
@@ -214,7 +226,7 @@ async function callActionsIfNeeded(deployItem: DeployItem, hre: HardhatRuntimeEn
         logInfo(`No actions to perform for ${deployItem.contract}`);
         return;
     }
-    logInfo(`Performing actions for ${deployItem.contract} (${deployItem.actions.length} total)`);
+    logInfo(`Performing Actions for ${deployItem.contract} (${deployItem.actions.length} total)`);
     for (let i = 0; i < deployItem.actions.length; i++) {
         const act = deployItem.actions[i];
         if (!DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] || !DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command].completed) {
@@ -229,13 +241,17 @@ async function callActionsIfNeeded(deployItem: DeployItem, hre: HardhatRuntimeEn
     }
 }
 
+function getInstanceOfContract(contractName: string) {
+    const finalName = "@" + contractName.replace("@", "");
+    return _DEPLOYED_INSTANCES[finalName];
+}
 async function callSingleAction(act: ItemAction, hre: HardhatRuntimeEnvironment, deployItem: DeployItem) {
     DEPLOY_STATE_OBJ[deployItem.contract].actions[act.command] = { pending: true, args: act.args }; // Set action state to pending
     await saveDeployState(); // Save state before action call
+    logInfo(`Resolving Params for ${act.target}.${act.command}( ${act.args!.join(', ')}) ` );
     act.args = await resolveParams(act.command, act.args, hre);
     const targetAddress = await resolveParams("target", [act.target], hre);
-    logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
-    const contractInstance = _DEPLOYED_INSTANCES[act.target];
+    const contractInstance = getInstanceOfContract(act.target);
     if (!contractInstance) {
         throw new Error(`Contract instance not found for ${act.target}.`);
     }
@@ -245,15 +261,22 @@ async function callSingleAction(act: ItemAction, hre: HardhatRuntimeEnvironment,
     const [activeWallet] = await hre.viem.getWalletClients();
 
     // Include the account in the transaction parameters
-    console.log(act.args);
+    //console.log(act.args);
     // log the abi:
-    console.log(JSON.stringify(contractInstance.abi, null, 2));
+    //console.log("-----------------------ABI  contract: "+act.target+"----------------------")
+    logInfo(`calling ${targetAddress}.${act.command}(${act.args!.join(',')})`);
+    //console.log(JSON.stringify(contractInstance.abi, null, 2));
+    //console.log("-----------------------ABI----------------------")
+
     const hash = await contractInstance.write[act.command](...act.args, { from: activeWallet.account.address });
     logInfo(`Waiting for transaction receipt: ${hash}`);
     // @ts-ignore
     const publicClient = await hre.viem.getPublicClient();
     // @ts-ignore
     const txR = await publicClient.waitForTransactionReceipt({ hash });
+    if(txR.status !== 1){
+        throw new Error(`Transaction failed: ${hash}`);
+    }
     logSetBalance(await getBalance());
     logInfo("included in block: " + txR.blockNumber);
     onFunctionCallSuccess(`called ${act.target}.${act.command}(${act.args!.join(',')})`);
@@ -279,7 +302,7 @@ function checkForCyclicDependencyProblem(deployItem: DeployItem) {
 }
 
 async function resolveParams(paramType: string, args: any[], hre: HardhatRuntimeEnvironment) {
-    logInfo(`Resolving ${paramType} args: (${args!.length} total)`);
+    logInfo(`Resolving ${paramType} args: (${args!.length} total)=> ${args!.join(',')}`);
     for (let i = 0; i < args!.length; i++) {
         if (args![i].startsWith &&
             args![i].startsWith('@')) {

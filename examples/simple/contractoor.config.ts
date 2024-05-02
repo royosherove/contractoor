@@ -29,10 +29,9 @@ const config: ConfigParams = {
             contract: "VerifiedChild",
             verify: true, 
             args: [1],
-            // initializeWith: ["@VerifiedParent"],
+            initializeWith: ["@VerifiedParent"],
             actions: [
                 { target: "@VerifiedParent", command: "allowChild", args: ["@VerifiedChild"] },
-                { target: "@VerifiedChild", command: "initialize", args: ["@VerifiedParent"] },
             ]
         },
         {
